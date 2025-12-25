@@ -20,6 +20,7 @@
             --success-color: #2ECC71;
             --warning-color: #F1C40F;
             --gray-text: #8E8E8E;
+            --patron-color: #8e44ad;
         }
 
         body {
@@ -50,6 +51,8 @@
             cursor: pointer; transition: opacity 0.2s; color: white; background-color: var(--highlight-color);
         }
         .btn:hover { opacity: 0.9; }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-success { background-color: var(--success-color); }
 
         /* --- MAIN LAYOUT --- */
         #app-container { display: none; width: 100%; height: 100%; }
@@ -66,6 +69,7 @@
         }
         .nav-item:hover { background-color: #f0f0f0; }
         .nav-item.active { border-left: 4px solid var(--highlight-color); background-color: #f8fbff; color: var(--highlight-color); }
+        .nav-item.disabled { opacity: 0.4; pointer-events: none; cursor: not-allowed; background: #f9f9f9; color: #ccc; }
         .nav-item i { width: 20px; text-align: center; }
 
         /* CONTENT */
@@ -82,6 +86,14 @@
         .stat-card { background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .stat-value { font-size: 28px; font-weight: 700; color: var(--highlight-color); margin: 10px 0; }
         .stat-label { font-size: 14px; color: var(--gray-text); }
+
+        /* CMS EDITING */
+        .cms-item { background: #fff; border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 6px; display: flex; gap: 10px; align-items: flex-start; }
+        .cms-content { flex-grow: 1; display: flex; flex-direction: column; gap: 5px; }
+        .cms-actions { display: flex; flex-direction: column; gap: 5px; }
+        .cms-input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .action-icon-btn { background: none; border: none; cursor: pointer; color: var(--gray-text); transition: color 0.2s; }
+        .action-icon-btn:hover { color: var(--danger-color); }
 
         /* USERS TABLE */
         .search-bar { width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: 6px; }
@@ -105,6 +117,10 @@
         .checkbox-group { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
         .checkbox-item { display: flex; align-items: center; gap: 10px; cursor: pointer; }
         
+        /* FEEDBACKS */
+        .feedback-item { background: white; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .feedback-meta { font-size: 12px; color: var(--gray-text); margin-bottom: 5px; display: flex; justify-content: space-between; }
+        
         /* TOAST */
         #toast { position: fixed; bottom: 20px; right: 20px; padding: 10px 20px; background: #333; color: white; border-radius: 4px; display: none; z-index: 3000; }
 
@@ -116,10 +132,10 @@
     <div id="auth-view">
         <div class="auth-card">
             <div class="logo">Drop <span>Modération</span></div>
-            <p style="color:#666; font-size:14px; margin-bottom:20px;">Accès réservé au Staff & Marketing</p>
-            <input type="email" id="admin-email" class="auth-input" placeholder="Email administrateur" value="admin@drop.com">
+            <p style="color:#666; font-size:14px; margin-bottom:20px;">Accès restreint (Staff & Patrons)</p>
+            <input type="email" id="admin-email" class="auth-input" placeholder="Email">
             <input type="password" id="admin-password" class="auth-input" placeholder="Mot de passe">
-            <button id="login-btn" class="btn">Connexion Sécurisée</button>
+            <button id="login-btn" class="btn">Connexion</button>
             <div id="login-msg" style="margin-top:10px; font-size:12px; color: var(--danger-color);"></div>
         </div>
     </div>
@@ -130,13 +146,14 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">Drop <span>Admin</span></div>
-                <div style="font-size:12px; color:#888;">v1.0.0 (Bêta)</div>
+                <div style="font-size:12px; color:#888;">Role: <b id="user-role-display">...</b></div>
             </div>
             <nav>
-                <div class="nav-item active" onclick="switchTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</div>
-                <div class="nav-item" onclick="switchTab('users')"><i class="fas fa-users"></i> Gestion Utilisateurs</div>
-                <div class="nav-item" onclick="switchTab('patrons')"><i class="fas fa-briefcase"></i> Patrons & Parrainage</div>
-                <div class="nav-item" onclick="switchTab('settings')"><i class="fas fa-cog"></i> Paramètres</div>
+                <div class="nav-item active" data-target="dashboard" onclick="switchTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</div>
+                <div class="nav-item" data-target="patrons" onclick="switchTab('patrons')"><i class="fas fa-briefcase"></i> Patrons & Parrainage</div>
+                <div class="nav-item" data-target="users" onclick="switchTab('users')"><i class="fas fa-users"></i> Gestion Utilisateurs</div>
+                <div class="nav-item" data-target="cms" onclick="switchTab('cms')"><i class="fas fa-edit"></i> Édition Site Infos</div>
+                <div class="nav-item" data-target="feedbacks" onclick="switchTab('feedbacks')"><i class="fas fa-comment-dots"></i> Feedbacks</div>
             </nav>
             <div style="margin-top: auto; padding: 20px;">
                 <button onclick="logout()" style="background:none; border:none; color:var(--danger-color); cursor:pointer; font-weight:600;"><i class="fas fa-sign-out-alt"></i> Déconnexion</button>
@@ -163,9 +180,8 @@
                         <div class="stat-value" id="stat-total-groups">-</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Tendances (Posts)</div>
-                        <div class="stat-value" id="stat-trends-count">-</div>
-                        <div style="font-size:12px; color:gray;">Sur les 40 derniers posts</div>
+                        <div class="stat-label">Retours (Feedbacks)</div>
+                        <div class="stat-value" id="stat-feedbacks-count">-</div>
                     </div>
                 </div>
                 
@@ -174,7 +190,7 @@
                 </div>
             </div>
 
-            <!-- USERS MANAGEMENT -->
+            <!-- USERS MANAGEMENT (Admin Only) -->
             <div id="users-view" class="section-view">
                 <h2>Gestion des Utilisateurs</h2>
                 <input type="text" id="user-search" class="search-bar" placeholder="Rechercher par pseudo ou ID..." onkeyup="filterUsers()">
@@ -186,8 +202,7 @@
                                 <th>Pseudo</th>
                                 <th>ID</th>
                                 <th>Badges</th>
-                                <th>Amis</th>
-                                <th>Posts</th>
+                                <th>Parrainé par</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -202,14 +217,6 @@
             <div id="patrons-view" class="section-view">
                 <h2>Espace Patrons & Parrainage</h2>
                 <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap: wrap;">
-                    <!-- Add Patron -->
-                    <div class="stat-card" style="flex: 1; min-width: 300px;">
-                        <h3>Ajouter un Patron</h3>
-                        <p style="font-size:12px; color:gray;">Entrez l'ID de l'utilisateur pour lui donner le statut "Patron".</p>
-                        <input type="text" id="new-patron-id" class="auth-input" placeholder="ID Utilisateur">
-                        <button class="btn" onclick="addPatron()">Promouvoir Patron</button>
-                    </div>
-
                     <!-- Leaderboard -->
                     <div class="stat-card" style="flex: 2; min-width: 300px;">
                         <h3>Classement des Patrons</h3>
@@ -217,7 +224,7 @@
                             <thead>
                                 <tr>
                                     <th>Patron</th>
-                                    <th>Parrainés (Total)</th>
+                                    <th>Parrainés</th>
                                     <th>Lien</th>
                                 </tr>
                             </thead>
@@ -226,15 +233,48 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                     <!-- Add Patron (Admin Only) -->
+                    <div id="admin-add-patron-block" class="stat-card" style="flex: 1; min-width: 300px;">
+                        <h3>Ajouter un Patron</h3>
+                        <p style="font-size:12px; color:gray;">Entrez l'ID de l'utilisateur pour lui donner le statut "Patron".</p>
+                        <input type="text" id="new-patron-id" class="auth-input" placeholder="ID Utilisateur">
+                        <button class="btn" onclick="addPatron()">Promouvoir Patron</button>
+                    </div>
                 </div>
             </div>
             
-            <!-- SETTINGS -->
-             <div id="settings-view" class="section-view">
-                <h2>Paramètres Système</h2>
-                <p>Version du canevas : 1.0.0</p>
-                <p style="color:red; font-weight:bold;">Zone Danger</p>
-                <p>Les fonctionnalités de suppression de masse ne sont pas encore activées dans cette version.</p>
+            <!-- CMS / INFO SITE EDITION (Admin Only) -->
+             <div id="cms-view" class="section-view">
+                <h2>Édition du site Drop Infos</h2>
+                
+                <div style="margin-bottom: 40px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3>Roadmap (Devlog)</h3>
+                        <button class="btn btn-success" onclick="addRoadmapItem()" style="width:auto; font-size:12px;"><i class="fas fa-plus"></i> Ajouter</button>
+                    </div>
+                    <div id="cms-roadmap-container"></div>
+                </div>
+
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3>Tutoriels & FAQ</h3>
+                        <button class="btn btn-success" onclick="addTutoItem()" style="width:auto; font-size:12px;"><i class="fas fa-plus"></i> Ajouter</button>
+                    </div>
+                    <div id="cms-tutos-container"></div>
+                </div>
+                
+                <div style="position:sticky; bottom:20px; text-align:right; margin-top:20px;">
+                     <button class="btn" onclick="saveCMS()" style="width:auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Enregistrer TOUTES les modifications</button>
+                </div>
+            </div>
+
+            <!-- FEEDBACKS (Admin Only) -->
+            <div id="feedbacks-view" class="section-view">
+                <h2>Retours Utilisateurs</h2>
+                <div id="feedback-list">
+                    <!-- JS Generated -->
+                </div>
             </div>
 
         </div>
@@ -269,9 +309,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, getDocs, doc, updateDoc, query, limit, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, getDoc, setDoc, doc, updateDoc, query, limit, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- FIREBASE CONFIG (Même que l'app principale) ---
+        // --- FIREBASE CONFIG ---
         const appId = '1:541715107757:web:0141b71ee3cd1ce5ec5b24';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
              apiKey: "AIzaSyB_z5U4yKJERho93p9696NujcG5R5fvlD8",
@@ -288,31 +328,75 @@
         const usersRef = collection(db, dbPath, 'users');
         const postsRef = collection(db, dbPath, 'posts');
         const groupsRef = collection(db, dbPath, 'groups');
-
-        // Liste blanche des admins (SIMULATION SÉCURITÉ)
-        const ALLOWED_EMAILS = ['admin@drop.com', 'marketing@drop.com', 'test@test.com'];
+        const feedbacksRef = collection(db, dbPath, 'feedbacks');
+        const cmsDocRef = doc(db, dbPath, 'cms', 'config');
 
         // STATE
         let allUsers = [];
         let editingUserId = null;
+        let currentUserRole = null; // 'staff' or 'patron'
 
         // --- AUTH LOGIC ---
         const authView = document.getElementById('auth-view');
         const appContainer = document.getElementById('app-container');
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Simulation check admin
-                // Note: Dans une vraie prod, ceci doit être fait via Custom Claims ou Firestore Rules
-                // Pour le canevas, on laisse entrer tout utilisateur connecté pour tester
-                authView.style.display = 'none';
-                appContainer.style.display = 'flex';
-                loadDashboard();
+                try {
+                    const userDoc = await getDoc(doc(usersRef, user.uid));
+                    if(userDoc.exists()) {
+                        const data = userDoc.data();
+                        const badges = data.badges || [];
+                        
+                        if(badges.includes('staff')) currentUserRole = 'staff';
+                        else if(badges.includes('patron')) currentUserRole = 'patron';
+                        else {
+                            throw new Error("Accès refusé. Badge requis.");
+                        }
+                        
+                        setupUIForRole(currentUserRole);
+                        authView.style.display = 'none';
+                        appContainer.style.display = 'flex';
+                        loadDashboard();
+                        loadCMS(); // Load CMS for staff
+                        loadFeedbacks(); // Load Feedbacks for staff
+                    } else {
+                        throw new Error("Compte introuvable.");
+                    }
+                } catch(e) {
+                    console.error(e);
+                    document.getElementById('login-msg').textContent = e.message;
+                    await signOut(auth);
+                    authView.style.display = 'flex';
+                    appContainer.style.display = 'none';
+                }
             } else {
                 authView.style.display = 'flex';
                 appContainer.style.display = 'none';
             }
         });
+
+        function setupUIForRole(role) {
+            document.getElementById('user-role-display').textContent = role.toUpperCase();
+            const navUsers = document.querySelector('.nav-item[data-target="users"]');
+            const navCMS = document.querySelector('.nav-item[data-target="cms"]');
+            const navFeedbacks = document.querySelector('.nav-item[data-target="feedbacks"]');
+            const adminAddBlock = document.getElementById('admin-add-patron-block');
+            
+            if(role === 'patron') {
+                navUsers.classList.add('disabled');
+                navCMS.classList.add('disabled');
+                navFeedbacks.classList.add('disabled'); 
+                adminAddBlock.style.display = 'none';
+                // Si on était sur une page interdite, retour dashboard
+                switchTab('dashboard');
+            } else {
+                navUsers.classList.remove('disabled');
+                navCMS.classList.remove('disabled');
+                navFeedbacks.classList.remove('disabled');
+                adminAddBlock.style.display = 'block';
+            }
+        }
 
         document.getElementById('login-btn').addEventListener('click', async () => {
             const email = document.getElementById('admin-email').value;
@@ -328,52 +412,161 @@
 
         // --- DASHBOARD LOGIC ---
         async function loadDashboard() {
-            // Fetch users (limité à 100 pour la démo/perf)
             const usersSnap = await getDocs(query(usersRef, limit(100)));
             allUsers = [];
             usersSnap.forEach(d => allUsers.push({id: d.id, ...d.data()}));
             
-            // Update Stats
             document.getElementById('stat-total-users').textContent = allUsers.length + (allUsers.length===100?'+':'');
-            
-            const postsSnap = await getDocs(query(postsRef, limit(50))); // Just to get a count idea
+            const postsSnap = await getDocs(query(postsRef, limit(50))); 
             document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
-            
             const groupsSnap = await getDocs(query(groupsRef, limit(50)));
             document.getElementById('stat-total-groups').textContent = groupsSnap.size;
+            const fbSnap = await getDocs(query(feedbacksRef));
+            document.getElementById('stat-feedbacks-count').textContent = fbSnap.size;
             
-            // Render Users Table
             renderUsersTable(allUsers);
             renderPatronsTable(allUsers);
             
-            // Mock Chart
             const ctx = document.getElementById('growthChart').getContext('2d');
             new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-                    datasets: [{
-                        label: 'Nouveaux Inscrits',
-                        data: [12, 19, 3, 5, 2, 3, 10], // Mock data
-                        borderColor: '#3897f0',
-                        tension: 0.4
-                    }]
+                    datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
         }
 
+        // --- CMS LOGIC ---
+        async function loadCMS() {
+            if(currentUserRole === 'patron') return;
+            const docSnap = await getDoc(cmsDocRef);
+            let data = docSnap.exists() ? docSnap.data() : { roadmap: [], tutos: [] };
+            
+            if(!data.roadmap) data.roadmap = [];
+            if(!data.tutos) data.tutos = [];
+
+            renderCMSInputs(data);
+        }
+
+        function renderCMSInputs(data) {
+            const rContainer = document.getElementById('cms-roadmap-container');
+            const tContainer = document.getElementById('cms-tutos-container');
+            rContainer.innerHTML = ''; tContainer.innerHTML = '';
+
+            data.roadmap.forEach((item, i) => {
+                const div = document.createElement('div'); div.className = 'cms-item';
+                div.innerHTML = `
+                    <div class="cms-content">
+                        <input class="cms-input roadmap-ver" value="${item.version || ''}" placeholder="Version (ex: v1.2)">
+                        <input class="cms-input roadmap-title" value="${item.title || ''}" placeholder="Titre">
+                        <input class="cms-input roadmap-desc" value="${item.desc || ''}" placeholder="Description">
+                    </div>
+                    <div class="cms-actions">
+                        <button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                rContainer.appendChild(div);
+            });
+
+            data.tutos.forEach((item, i) => {
+                const div = document.createElement('div'); div.className = 'cms-item';
+                div.innerHTML = `
+                    <div class="cms-content">
+                        <input class="cms-input tuto-title" value="${item.title || ''}" placeholder="Titre Tuto">
+                        <input class="cms-input tuto-desc" value="${item.desc || ''}" placeholder="Description">
+                    </div>
+                    <div class="cms-actions">
+                        <button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                tContainer.appendChild(div);
+            });
+        }
+
+        window.addRoadmapItem = () => {
+            const rContainer = document.getElementById('cms-roadmap-container');
+            const div = document.createElement('div'); div.className = 'cms-item';
+            div.innerHTML = `
+                <div class="cms-content">
+                    <input class="cms-input roadmap-ver" placeholder="Version (ex: v1.3)">
+                    <input class="cms-input roadmap-title" placeholder="Titre">
+                    <input class="cms-input roadmap-desc" placeholder="Description">
+                </div>
+                <div class="cms-actions"><button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button></div>
+            `;
+            rContainer.prepend(div);
+        };
+
+        window.addTutoItem = () => {
+            const tContainer = document.getElementById('cms-tutos-container');
+            const div = document.createElement('div'); div.className = 'cms-item';
+            div.innerHTML = `
+                <div class="cms-content">
+                    <input class="cms-input tuto-title" placeholder="Titre Tuto">
+                    <input class="cms-input tuto-desc" placeholder="Description">
+                </div>
+                <div class="cms-actions"><button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button></div>
+            `;
+            tContainer.prepend(div);
+        };
+
+        window.saveCMS = async () => {
+            if(currentUserRole === 'patron') return;
+            const roadmapItems = [];
+            document.querySelectorAll('#cms-roadmap-container .cms-item').forEach(div => {
+                roadmapItems.push({
+                    version: div.querySelector('.roadmap-ver').value,
+                    title: div.querySelector('.roadmap-title').value,
+                    desc: div.querySelector('.roadmap-desc').value
+                });
+            });
+
+            const tutoItems = [];
+            document.querySelectorAll('#cms-tutos-container .cms-item').forEach(div => {
+                tutoItems.push({
+                    title: div.querySelector('.tuto-title').value,
+                    desc: div.querySelector('.tuto-desc').value
+                });
+            });
+
+            try {
+                await setDoc(cmsDocRef, { roadmap: roadmapItems, tutos: tutoItems }, { merge: true });
+                showToast("Site Infos mis à jour !");
+            } catch(e) { showToast("Erreur sauvegarde."); }
+        };
+        
+        // --- FEEDBACKS ---
+        async function loadFeedbacks() {
+            if(currentUserRole === 'patron') return;
+            const snap = await getDocs(query(feedbacksRef, orderBy('createdAt', 'desc'), limit(20)));
+            const list = document.getElementById('feedback-list');
+            list.innerHTML = '';
+            if(snap.empty) { list.innerHTML = '<div style="color:#888;">Aucun retour.</div>'; return; }
+            snap.forEach(d => {
+                const data = d.data();
+                const date = data.createdAt ? new Date(data.createdAt.seconds*1000).toLocaleString() : 'Inconnue';
+                const div = document.createElement('div'); div.className = 'feedback-item';
+                div.innerHTML = `
+                    <div class="feedback-meta">
+                        <span>De: <b>${data.email || 'Anonyme'}</b></span>
+                        <span>${date}</span>
+                    </div>
+                    <div style="font-size:14px;">${data.message}</div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
         // --- NAVIGATION ---
         window.switchTab = (tabId) => {
+            if(currentUserRole === 'patron' && (tabId === 'users' || tabId === 'cms' || tabId === 'feedbacks')) return;
             document.querySelectorAll('.section-view').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById(tabId + '-view').classList.add('active');
-            // Trouver l'index pour highlight le nav item (approximatif)
-            const navs = document.querySelectorAll('.nav-item');
-            if(tabId === 'dashboard') navs[0].classList.add('active');
-            if(tabId === 'users') navs[1].classList.add('active');
-            if(tabId === 'patrons') navs[2].classList.add('active');
-            if(tabId === 'settings') navs[3].classList.add('active');
+            const navBtn = document.querySelector(`.nav-item[data-target="${tabId}"]`);
+            if(navBtn) navBtn.classList.add('active');
         };
 
         // --- USERS TABLE ---
@@ -397,8 +590,7 @@
                     <td><b>${u.username}</b></td>
                     <td style="font-family:monospace; color:#888;">${u.id.substring(0,8)}...</td>
                     <td>${badgesHtml}</td>
-                    <td>${(u.friends||[]).length}</td>
-                    <td>${u.postsCount||0}</td>
+                    <td>${u.referredBy ? u.referredBy.substring(0,8)+'...' : '-'}</td>
                     <td><button class="btn" style="padding:5px 10px; font-size:12px; width:auto;">Éditer</button></td>
                 `;
                 tbody.appendChild(tr);
@@ -413,6 +605,7 @@
 
         // --- EDIT USER ---
         window.openEditUser = (u) => {
+            if(currentUserRole === 'patron') return;
             editingUserId = u.id;
             document.getElementById('modal-user-info').innerHTML = `Utilisateur: <b>${u.username}</b><br>ID: ${u.id}`;
             const badges = u.badges || [];
@@ -436,12 +629,11 @@
             
             try {
                 await updateDoc(doc(usersRef, editingUserId), { badges: newBadges });
-                // Update local data
                 const idx = allUsers.findIndex(u => u.id === editingUserId);
                 if(idx !== -1) allUsers[idx].badges = newBadges;
                 
                 renderUsersTable(allUsers);
-                renderPatronsTable(allUsers); // Refresh patrons too
+                renderPatronsTable(allUsers); 
                 closeModal();
                 showToast("Modifications enregistrées !");
             } catch(e) {
@@ -458,20 +650,18 @@
 
         // --- PATRONS LOGIC ---
         window.addPatron = async () => {
+            if(currentUserRole === 'patron') return;
             const id = document.getElementById('new-patron-id').value.trim();
             if(!id) return;
             try {
-                // On ajoute simplement le badge 'patron' à l'utilisateur
-                // Note: La règle de sécurité actuelle permet l'update.
-                // Dans un vrai système, on utiliserait arrayUnion. Ici on fetch/update simple pour le canevas.
                 const user = allUsers.find(u => u.id === id);
-                if(!user) return showToast("Utilisateur introuvable dans le cache local.");
+                if(!user) return showToast("Utilisateur introuvable dans la liste chargée.");
                 
                 const currentBadges = user.badges || [];
                 if(!currentBadges.includes('patron')) {
                     const newBadges = [...currentBadges, 'patron'];
                     await updateDoc(doc(usersRef, id), { badges: newBadges });
-                    user.badges = newBadges; // Local update
+                    user.badges = newBadges; 
                     renderPatronsTable(allUsers);
                     showToast("Utilisateur promu Patron !");
                 } else {
@@ -484,7 +674,6 @@
             const tbody = document.getElementById('patrons-table-body');
             tbody.innerHTML = '';
             
-            // Filter users who have 'patron' badge
             const patrons = users.filter(u => (u.badges||[]).includes('patron'));
             
             if(patrons.length === 0) {
@@ -493,10 +682,7 @@
             }
 
             patrons.forEach(p => {
-                // Count referrals (Mock logic: in real app, we would query users where referredBy == p.id)
-                // For this canvas, we just show 0 or a mock number based on friend count maybe?
-                // Let's assume we count friends as a proxy for "Network" for now as we don't have referredBy in DB yet.
-                const referrals = (p.friends || []).length; 
+                const referralCount = users.filter(u => u.referredBy === p.id).length;
                 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -506,7 +692,7 @@
                             <b>${p.username}</b>
                         </div>
                     </td>
-                    <td><span style="font-weight:bold; color:var(--highlight-color);">${referrals}</span> (Simulé via Amis)</td>
+                    <td><span style="font-weight:bold; color:var(--highlight-color);">${referralCount}</span></td>
                     <td><code style="background:#f0f0f0; padding:4px;">drop-24.netlify.app?ref=${p.id}</code></td>
                 `;
                 tbody.appendChild(tr);
