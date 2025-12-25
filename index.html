@@ -436,42 +436,60 @@
 
         // --- DASHBOARD LOGIC ---
         async function loadDashboard() {
-            const usersSnap = await getDocs(query(usersRef, limit(100)));
-            allUsers = [];
-            usersSnap.forEach(d => allUsers.push({id: d.id, ...d.data()}));
-            
-            document.getElementById('stat-total-users').textContent = allUsers.length + (allUsers.length===100?'+':'');
-            const postsSnap = await getDocs(query(postsRef, limit(50))); 
-            document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
-            const groupsSnap = await getDocs(query(groupsRef, limit(50)));
-            document.getElementById('stat-total-groups').textContent = groupsSnap.size;
-            const fbSnap = await getDocs(query(feedbacksRef));
-            document.getElementById('stat-feedbacks-count').textContent = fbSnap.size;
-            
-            renderUsersTable(allUsers);
-            renderPatronsTable(allUsers);
-            
-            const ctx = document.getElementById('growthChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-                    datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            try {
+                const usersSnap = await getDocs(query(usersRef, limit(100)));
+                allUsers = [];
+                usersSnap.forEach(d => allUsers.push({id: d.id, ...d.data()}));
+                
+                document.getElementById('stat-total-users').textContent = allUsers.length + (allUsers.length===100?'+':'');
+                
+                const postsSnap = await getDocs(query(postsRef, limit(50))); 
+                document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
+                
+                const groupsSnap = await getDocs(query(groupsRef, limit(50)));
+                document.getElementById('stat-total-groups').textContent = groupsSnap.size;
+                
+                // Note: feedbacksRef might fail if user is not staff in RULES, catching block below handles it
+                if(currentUserRole === 'staff') {
+                    const fbSnap = await getDocs(query(feedbacksRef));
+                    document.getElementById('stat-feedbacks-count').textContent = fbSnap.size;
+                } else {
+                    document.getElementById('stat-feedbacks-count').textContent = '-';
+                }
+                
+                renderUsersTable(allUsers);
+                renderPatronsTable(allUsers);
+                
+                const ctx = document.getElementById('growthChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+                        datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } catch (e) {
+                console.error("Dashboard Load Error:", e);
+                showToast("Erreur de chargement (Permissions?)");
+            }
         }
 
         // --- CMS LOGIC ---
         async function loadCMS() {
             if(currentUserRole === 'patron') return;
-            const docSnap = await getDoc(cmsDocRef);
-            let data = docSnap.exists() ? docSnap.data() : { roadmap: [], tutos: [] };
-            
-            if(!data.roadmap) data.roadmap = [];
-            if(!data.tutos) data.tutos = [];
+            try {
+                const docSnap = await getDoc(cmsDocRef);
+                let data = docSnap.exists() ? docSnap.data() : { roadmap: [], tutos: [] };
+                
+                if(!data.roadmap) data.roadmap = [];
+                if(!data.tutos) data.tutos = [];
 
-            renderCMSInputs(data);
+                renderCMSInputs(data);
+            } catch(e) {
+                console.error("CMS Load Error:", e);
+                // Do not toast for every load error on init
+            }
         }
 
         function renderCMSInputs(data) {
@@ -564,23 +582,29 @@
         // --- FEEDBACKS ---
         async function loadFeedbacks() {
             if(currentUserRole === 'patron') return;
-            const snap = await getDocs(query(feedbacksRef, orderBy('createdAt', 'desc'), limit(20)));
-            const list = document.getElementById('feedback-list');
-            list.innerHTML = '';
-            if(snap.empty) { list.innerHTML = '<div style="color:#888;">Aucun retour.</div>'; return; }
-            snap.forEach(d => {
-                const data = d.data();
-                const date = data.createdAt ? new Date(data.createdAt.seconds*1000).toLocaleString() : 'Inconnue';
-                const div = document.createElement('div'); div.className = 'feedback-item';
-                div.innerHTML = `
-                    <div class="feedback-meta">
-                        <span>De: <b>${data.email || 'Anonyme'}</b></span>
-                        <span>${date}</span>
-                    </div>
-                    <div style="font-size:14px;">${data.message}</div>
-                `;
-                list.appendChild(div);
-            });
+            try {
+                const snap = await getDocs(query(feedbacksRef, orderBy('createdAt', 'desc'), limit(20)));
+                const list = document.getElementById('feedback-list');
+                list.innerHTML = '';
+                if(snap.empty) { list.innerHTML = '<div style="color:#888;">Aucun retour.</div>'; return; }
+                snap.forEach(d => {
+                    const data = d.data();
+                    const date = data.createdAt ? new Date(data.createdAt.seconds*1000).toLocaleString() : 'Inconnue';
+                    const div = document.createElement('div'); div.className = 'feedback-item';
+                    div.innerHTML = `
+                        <div class="feedback-meta">
+                            <span>De: <b>${data.email || 'Anonyme'}</b></span>
+                            <span>${date}</span>
+                        </div>
+                        <div style="font-size:14px;">${data.message}</div>
+                    `;
+                    list.appendChild(div);
+                });
+            } catch(e) {
+                console.error("Feedbacks Load Error:", e);
+                const list = document.getElementById('feedback-list');
+                list.innerHTML = '<div style="color:red;">Erreur de chargement (Permissions). Vérifiez que vous êtes bien Staff dans Firestore.</div>';
+            }
         }
 
         // --- NAVIGATION ---
