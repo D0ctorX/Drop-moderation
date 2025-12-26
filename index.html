@@ -150,7 +150,7 @@
             
             <button id="google-login-btn" class="btn btn-google"><i class="fab fa-google"></i> Connexion avec Google</button>
             
-            <div id="login-msg" style="margin-top:10px; font-size:12px; color: var(--danger-color);"></div>
+            <div id="login-msg" style="margin-top:10px; font-size:12px; color: var(--danger-color); white-space: pre-wrap;"></div>
         </div>
     </div>
 
@@ -230,7 +230,6 @@
             <!-- PATRONS -->
             <div id="patrons-view" class="section-view">
                 <h2>Espace Patrons & Parrainage</h2>
-                <!-- Removed Add Patron Input as requested -->
                 <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap: wrap;">
                     <!-- Leaderboard -->
                     <div class="stat-card" style="flex: 2; min-width: 300px; width: 100%;">
@@ -251,10 +250,9 @@
                 </div>
             </div>
             
-            <!-- CMS / INFO SITE EDITION (Admin Only) -->
+            <!-- CMS (Admin Only) -->
              <div id="cms-view" class="section-view">
                 <h2>Édition Roadmap</h2>
-                <!-- Removed Tutos Editing -->
                 
                 <div style="margin-bottom: 40px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -334,7 +332,8 @@
         // STATE
         let allUsers = [];
         let editingUserId = null;
-        let currentUserRole = null; // 'staff' or 'patron'
+        let currentUserRole = null; 
+        let growthChartInstance = null;
 
         // --- AUTH LOGIC ---
         const authView = document.getElementById('auth-view');
@@ -342,7 +341,6 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                console.log("Current User ID:", user.uid); // Debug helper
                 try {
                     const userDoc = await getDoc(doc(usersRef, user.uid));
                     if(userDoc.exists()) {
@@ -352,22 +350,24 @@
                         if(badges.includes('staff')) currentUserRole = 'staff';
                         else if(badges.includes('patron')) currentUserRole = 'patron';
                         else {
-                            throw new Error("Accès refusé. Badge 'Staff' ou 'Patron' requis.");
+                            // Erreur 1: Pas les droits
+                            throw new Error("Désolé ce compte n'est ni administrateur ni Patron, vous ne pouvez pas avoir accès à ce site");
                         }
                         
                         setupUIForRole(currentUserRole);
                         authView.style.display = 'none';
                         appContainer.style.display = 'flex';
                         loadDashboard();
-                        loadCMS(); // Load CMS for staff
-                        loadFeedbacks(); // Load Feedbacks for staff
+                        loadCMS(); 
+                        loadFeedbacks(); 
                     } else {
-                        throw new Error("Compte utilisateur introuvable ou droits insuffisants.");
+                        // Erreur 2: Compte existe Auth mais pas en base (bizarre mais possible) -> traité comme "Pas de compte"
+                        throw new Error("Désolé ces identifiants ne sont attribués à aucun compte.");
                     }
                 } catch(e) {
                     console.error(e);
                     document.getElementById('login-msg').textContent = e.message;
-                    await signOut(auth);
+                    await signOut(auth); // Déconnexion forcée
                     authView.style.display = 'flex';
                     appContainer.style.display = 'none';
                 }
@@ -377,12 +377,21 @@
             }
         });
 
+        function handleAuthError(error) {
+            let msg = "Une erreur est survenue.";
+            if(error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/invalid-email') {
+                msg = "Désolé ces identifiants ne sont attribués à aucun compte.";
+            } else {
+                msg = error.message;
+            }
+            document.getElementById('login-msg').textContent = msg;
+        }
+
         function setupUIForRole(role) {
             document.getElementById('user-role-display').textContent = role.toUpperCase();
             const navUsers = document.querySelector('.nav-item[data-target="users"]');
             const navCMS = document.querySelector('.nav-item[data-target="cms"]');
             const navFeedbacks = document.querySelector('.nav-item[data-target="feedbacks"]');
-            // admin-add-patron-block is removed
             
             if(role === 'patron') {
                 navUsers.classList.add('disabled');
@@ -402,7 +411,7 @@
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
             } catch (e) {
-                document.getElementById('login-msg').textContent = "Erreur: " + e.message;
+                handleAuthError(e);
             }
         });
 
@@ -411,7 +420,7 @@
                 const provider = new GoogleAuthProvider();
                 await signInWithPopup(auth, provider);
             } catch (e) {
-                document.getElementById('login-msg').textContent = "Erreur Google: " + e.message;
+                handleAuthError(e);
             }
         });
 
@@ -424,8 +433,10 @@
                 allUsers = [];
                 usersSnap.forEach(d => allUsers.push({id: d.id, ...d.data()}));
                 document.getElementById('stat-total-users').textContent = allUsers.length + (allUsers.length===100?'+':'');
+                
                 renderUsersTable(allUsers);
                 renderPatronsTable(allUsers);
+                updateGrowthChart(allUsers); // REAL CHART DATA
             } catch(e) { console.error("Users Error", e); document.getElementById('stat-total-users').textContent = 'Err'; }
 
             try {
@@ -438,7 +449,9 @@
                 document.getElementById('stat-total-groups').textContent = groupsSnap.size;
             } catch(e) { 
                 console.error("Groups Error", e); 
-                document.getElementById('stat-total-groups').textContent = 'Err';
+                // Si permission error (Staff/Patron should see), c'est probablement que l'utilisateur courant n'a pas le badge en base ou les règles ont du mal.
+                // On met 0 pour éviter 'Err' moche.
+                document.getElementById('stat-total-groups').textContent = '?';
             }
             
             if(currentUserRole === 'staff') {
@@ -449,13 +462,47 @@
             } else {
                 document.getElementById('stat-feedbacks-count').textContent = '-';
             }
-            
+        }
+
+        function updateGrowthChart(users) {
+            // Regrouper les utilisateurs par date de création (accountCreatedAt)
+            const counts = {};
+            // On initialise les 7 derniers jours à 0
+            const today = new Date();
+            for(let i=6; i>=0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                const k = d.toLocaleDateString('fr-FR');
+                counts[k] = 0;
+            }
+
+            users.forEach(u => {
+                if(u.accountCreatedAt) {
+                    // Firebase timestamp to date
+                    const d = u.accountCreatedAt.toDate ? u.accountCreatedAt.toDate() : new Date();
+                    const k = d.toLocaleDateString('fr-FR');
+                    if(counts[k] !== undefined) counts[k]++;
+                }
+            });
+
+            const labels = Object.keys(counts);
+            const data = Object.values(counts);
+
             const ctx = document.getElementById('growthChart').getContext('2d');
-            new Chart(ctx, {
+            if(growthChartInstance) growthChartInstance.destroy();
+            
+            growthChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-                    datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
+                    labels: labels,
+                    datasets: [{
+                        label: 'Inscriptions (7 derniers jours)',
+                        data: data,
+                        borderColor: '#3897f0',
+                        backgroundColor: 'rgba(56, 151, 240, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
@@ -466,12 +513,10 @@
             if(currentUserRole === 'patron') return;
             try {
                 const docSnap = await getDoc(cmsDocRef);
-                let data = docSnap.exists() ? docSnap.data() : { roadmap: [] }; // No tutos
+                let data = docSnap.exists() ? docSnap.data() : { roadmap: [] };
                 if(!data.roadmap) data.roadmap = [];
                 renderCMSInputs(data);
-            } catch(e) {
-                console.error("CMS Load Error:", e);
-            }
+            } catch(e) { console.error("CMS Load Error:", e); }
         }
 
         function renderCMSInputs(data) {
@@ -520,8 +565,6 @@
             });
 
             try {
-                // We keep tutos in DB if they exist but don't edit them, or just overwrite? 
-                // Request said "enlève ... la partie tutoriel", safely assuming we can just save roadmap.
                 await setDoc(cmsDocRef, { roadmap: roadmapItems }, { merge: true });
                 showToast("Roadmap mise à jour !");
             } catch(e) { showToast("Erreur sauvegarde."); }
