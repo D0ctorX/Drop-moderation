@@ -166,7 +166,7 @@
                 <div class="nav-item active" data-target="dashboard" onclick="switchTab('dashboard')"><i class="fas fa-chart-line"></i> Dashboard</div>
                 <div class="nav-item" data-target="patrons" onclick="switchTab('patrons')"><i class="fas fa-briefcase"></i> Patrons & Parrainage</div>
                 <div class="nav-item" data-target="users" onclick="switchTab('users')"><i class="fas fa-users"></i> Gestion Utilisateurs</div>
-                <div class="nav-item" data-target="cms" onclick="switchTab('cms')"><i class="fas fa-edit"></i> Édition Site Infos</div>
+                <div class="nav-item" data-target="cms" onclick="switchTab('cms')"><i class="fas fa-edit"></i> Roadmap (CMS)</div>
                 <div class="nav-item" data-target="feedbacks" onclick="switchTab('feedbacks')"><i class="fas fa-comment-dots"></i> Feedbacks</div>
             </nav>
             <div style="margin-top: auto; padding: 20px;">
@@ -230,9 +230,10 @@
             <!-- PATRONS -->
             <div id="patrons-view" class="section-view">
                 <h2>Espace Patrons & Parrainage</h2>
+                <!-- Removed Add Patron Input as requested -->
                 <div style="display:flex; gap:20px; align-items:flex-start; flex-wrap: wrap;">
                     <!-- Leaderboard -->
-                    <div class="stat-card" style="flex: 2; min-width: 300px;">
+                    <div class="stat-card" style="flex: 2; min-width: 300px; width: 100%;">
                         <h3>Classement des Patrons</h3>
                         <table class="data-table">
                             <thead>
@@ -247,20 +248,13 @@
                             </tbody>
                         </table>
                     </div>
-                    
-                     <!-- Add Patron (Admin Only) -->
-                    <div id="admin-add-patron-block" class="stat-card" style="flex: 1; min-width: 300px;">
-                        <h3>Ajouter un Patron</h3>
-                        <p style="font-size:12px; color:gray;">Entrez l'ID de l'utilisateur pour lui donner le statut "Patron".</p>
-                        <input type="text" id="new-patron-id" class="auth-input" placeholder="ID Utilisateur">
-                        <button class="btn" onclick="addPatron()">Promouvoir Patron</button>
-                    </div>
                 </div>
             </div>
             
             <!-- CMS / INFO SITE EDITION (Admin Only) -->
              <div id="cms-view" class="section-view">
-                <h2>Édition du site Drop Infos</h2>
+                <h2>Édition Roadmap</h2>
+                <!-- Removed Tutos Editing -->
                 
                 <div style="margin-bottom: 40px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -269,17 +263,9 @@
                     </div>
                     <div id="cms-roadmap-container"></div>
                 </div>
-
-                <div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3>Tutoriels & FAQ</h3>
-                        <button class="btn btn-success" onclick="addTutoItem()" style="width:auto; font-size:12px;"><i class="fas fa-plus"></i> Ajouter</button>
-                    </div>
-                    <div id="cms-tutos-container"></div>
-                </div>
                 
                 <div style="position:sticky; bottom:20px; text-align:right; margin-top:20px;">
-                     <button class="btn" onclick="saveCMS()" style="width:auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Enregistrer TOUTES les modifications</button>
+                     <button class="btn" onclick="saveCMS()" style="width:auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">Enregistrer</button>
                 </div>
             </div>
 
@@ -356,6 +342,7 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
+                console.log("Current User ID:", user.uid); // Debug helper
                 try {
                     const userDoc = await getDoc(doc(usersRef, user.uid));
                     if(userDoc.exists()) {
@@ -375,7 +362,6 @@
                         loadCMS(); // Load CMS for staff
                         loadFeedbacks(); // Load Feedbacks for staff
                     } else {
-                        // User exists in Auth but not in DB or has no role
                         throw new Error("Compte utilisateur introuvable ou droits insuffisants.");
                     }
                 } catch(e) {
@@ -396,20 +382,17 @@
             const navUsers = document.querySelector('.nav-item[data-target="users"]');
             const navCMS = document.querySelector('.nav-item[data-target="cms"]');
             const navFeedbacks = document.querySelector('.nav-item[data-target="feedbacks"]');
-            const adminAddBlock = document.getElementById('admin-add-patron-block');
+            // admin-add-patron-block is removed
             
             if(role === 'patron') {
                 navUsers.classList.add('disabled');
                 navCMS.classList.add('disabled');
                 navFeedbacks.classList.add('disabled'); 
-                adminAddBlock.style.display = 'none';
-                // Si on était sur une page interdite, retour dashboard
                 switchTab('dashboard');
             } else {
                 navUsers.classList.remove('disabled');
                 navCMS.classList.remove('disabled');
                 navFeedbacks.classList.remove('disabled');
-                adminAddBlock.style.display = 'block';
             }
         }
 
@@ -436,7 +419,6 @@
 
         // --- DASHBOARD LOGIC ---
         async function loadDashboard() {
-            // Users
             try {
                 const usersSnap = await getDocs(query(usersRef, limit(100)));
                 allUsers = [];
@@ -446,15 +428,12 @@
                 renderPatronsTable(allUsers);
             } catch(e) { console.error("Users Error", e); document.getElementById('stat-total-users').textContent = 'Err'; }
 
-            // Posts
             try {
                 const postsSnap = await getDocs(query(postsRef, limit(50))); 
                 document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
             } catch(e) { console.error("Posts Error", e); document.getElementById('stat-total-posts').textContent = 'Err'; }
 
-            // Groups
             try {
-                // IMPORTANT: The rules now allow staff to read groups without filter
                 const groupsSnap = await getDocs(query(groupsRef, limit(50)));
                 document.getElementById('stat-total-groups').textContent = groupsSnap.size;
             } catch(e) { 
@@ -462,7 +441,6 @@
                 document.getElementById('stat-total-groups').textContent = 'Err';
             }
             
-            // Feedbacks (Staff only normally, handled by role check but safe here)
             if(currentUserRole === 'staff') {
                 try {
                     const fbSnap = await getDocs(query(feedbacksRef));
@@ -488,22 +466,17 @@
             if(currentUserRole === 'patron') return;
             try {
                 const docSnap = await getDoc(cmsDocRef);
-                let data = docSnap.exists() ? docSnap.data() : { roadmap: [], tutos: [] };
-                
+                let data = docSnap.exists() ? docSnap.data() : { roadmap: [] }; // No tutos
                 if(!data.roadmap) data.roadmap = [];
-                if(!data.tutos) data.tutos = [];
-
                 renderCMSInputs(data);
             } catch(e) {
                 console.error("CMS Load Error:", e);
-                // Do not toast for every load error on init
             }
         }
 
         function renderCMSInputs(data) {
             const rContainer = document.getElementById('cms-roadmap-container');
-            const tContainer = document.getElementById('cms-tutos-container');
-            rContainer.innerHTML = ''; tContainer.innerHTML = '';
+            rContainer.innerHTML = ''; 
 
             data.roadmap.forEach((item, i) => {
                 const div = document.createElement('div'); div.className = 'cms-item';
@@ -518,20 +491,6 @@
                     </div>
                 `;
                 rContainer.appendChild(div);
-            });
-
-            data.tutos.forEach((item, i) => {
-                const div = document.createElement('div'); div.className = 'cms-item';
-                div.innerHTML = `
-                    <div class="cms-content">
-                        <input class="cms-input tuto-title" value="${item.title || ''}" placeholder="Titre Tuto">
-                        <input class="cms-input tuto-desc" value="${item.desc || ''}" placeholder="Description">
-                    </div>
-                    <div class="cms-actions">
-                        <button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button>
-                    </div>
-                `;
-                tContainer.appendChild(div);
             });
         }
 
@@ -549,19 +508,6 @@
             rContainer.prepend(div);
         };
 
-        window.addTutoItem = () => {
-            const tContainer = document.getElementById('cms-tutos-container');
-            const div = document.createElement('div'); div.className = 'cms-item';
-            div.innerHTML = `
-                <div class="cms-content">
-                    <input class="cms-input tuto-title" placeholder="Titre Tuto">
-                    <input class="cms-input tuto-desc" placeholder="Description">
-                </div>
-                <div class="cms-actions"><button class="action-icon-btn" onclick="this.closest('.cms-item').remove()"><i class="fas fa-trash"></i></button></div>
-            `;
-            tContainer.prepend(div);
-        };
-
         window.saveCMS = async () => {
             if(currentUserRole === 'patron') return;
             const roadmapItems = [];
@@ -573,17 +519,11 @@
                 });
             });
 
-            const tutoItems = [];
-            document.querySelectorAll('#cms-tutos-container .cms-item').forEach(div => {
-                tutoItems.push({
-                    title: div.querySelector('.tuto-title').value,
-                    desc: div.querySelector('.tuto-desc').value
-                });
-            });
-
             try {
-                await setDoc(cmsDocRef, { roadmap: roadmapItems, tutos: tutoItems }, { merge: true });
-                showToast("Site Infos mis à jour !");
+                // We keep tutos in DB if they exist but don't edit them, or just overwrite? 
+                // Request said "enlève ... la partie tutoriel", safely assuming we can just save roadmap.
+                await setDoc(cmsDocRef, { roadmap: roadmapItems }, { merge: true });
+                showToast("Roadmap mise à jour !");
             } catch(e) { showToast("Erreur sauvegarde."); }
         };
         
@@ -705,27 +645,6 @@
         }
 
         // --- PATRONS LOGIC ---
-        window.addPatron = async () => {
-            if(currentUserRole === 'patron') return;
-            const id = document.getElementById('new-patron-id').value.trim();
-            if(!id) return;
-            try {
-                const user = allUsers.find(u => u.id === id);
-                if(!user) return showToast("Utilisateur introuvable dans la liste chargée.");
-                
-                const currentBadges = user.badges || [];
-                if(!currentBadges.includes('patron')) {
-                    const newBadges = [...currentBadges, 'patron'];
-                    await updateDoc(doc(usersRef, id), { badges: newBadges });
-                    user.badges = newBadges; 
-                    renderPatronsTable(allUsers);
-                    showToast("Utilisateur promu Patron !");
-                } else {
-                    showToast("Déjà Patron.");
-                }
-            } catch(e) { showToast("Erreur update."); }
-        };
-
         function renderPatronsTable(users) {
             const tbody = document.getElementById('patrons-table-body');
             tbody.innerHTML = '';
