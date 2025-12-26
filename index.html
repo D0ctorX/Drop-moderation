@@ -436,43 +436,51 @@
 
         // --- DASHBOARD LOGIC ---
         async function loadDashboard() {
+            // Users
             try {
                 const usersSnap = await getDocs(query(usersRef, limit(100)));
                 allUsers = [];
                 usersSnap.forEach(d => allUsers.push({id: d.id, ...d.data()}));
-                
                 document.getElementById('stat-total-users').textContent = allUsers.length + (allUsers.length===100?'+':'');
-                
-                const postsSnap = await getDocs(query(postsRef, limit(50))); 
-                document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
-                
-                const groupsSnap = await getDocs(query(groupsRef, limit(50)));
-                document.getElementById('stat-total-groups').textContent = groupsSnap.size;
-                
-                // Note: feedbacksRef might fail if user is not staff in RULES, catching block below handles it
-                if(currentUserRole === 'staff') {
-                    const fbSnap = await getDocs(query(feedbacksRef));
-                    document.getElementById('stat-feedbacks-count').textContent = fbSnap.size;
-                } else {
-                    document.getElementById('stat-feedbacks-count').textContent = '-';
-                }
-                
                 renderUsersTable(allUsers);
                 renderPatronsTable(allUsers);
-                
-                const ctx = document.getElementById('growthChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-                        datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false }
-                });
-            } catch (e) {
-                console.error("Dashboard Load Error:", e);
-                showToast("Erreur de chargement (Permissions?)");
+            } catch(e) { console.error("Users Error", e); document.getElementById('stat-total-users').textContent = 'Err'; }
+
+            // Posts
+            try {
+                const postsSnap = await getDocs(query(postsRef, limit(50))); 
+                document.getElementById('stat-total-posts').textContent = postsSnap.size + '+';
+            } catch(e) { console.error("Posts Error", e); document.getElementById('stat-total-posts').textContent = 'Err'; }
+
+            // Groups
+            try {
+                // IMPORTANT: The rules now allow staff to read groups without filter
+                const groupsSnap = await getDocs(query(groupsRef, limit(50)));
+                document.getElementById('stat-total-groups').textContent = groupsSnap.size;
+            } catch(e) { 
+                console.error("Groups Error", e); 
+                document.getElementById('stat-total-groups').textContent = 'Err';
             }
+            
+            // Feedbacks (Staff only normally, handled by role check but safe here)
+            if(currentUserRole === 'staff') {
+                try {
+                    const fbSnap = await getDocs(query(feedbacksRef));
+                    document.getElementById('stat-feedbacks-count').textContent = fbSnap.size;
+                } catch(e) { console.error("Feedback Error", e); }
+            } else {
+                document.getElementById('stat-feedbacks-count').textContent = '-';
+            }
+            
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+                    datasets: [{ label: 'Activité', data: [12, 19, 3, 5, 2, 3, 10], borderColor: '#3897f0', tension: 0.4 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
         }
 
         // --- CMS LOGIC ---
